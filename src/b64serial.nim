@@ -22,12 +22,19 @@ const
 template neededSpace(T: typedesc): int =
   (sizeof(T)*8 + 5) div 6
 
+template neededSpace[T](x: T): int =
+  neededSpace(typeof(x))
+
+type BasicType = bool | char | SomeInteger | SomeFloat
+
 
 # ---- forward decl ----
 
-proc toB64s[T: array](s: var string, vs: T)
+proc toB64s[I; T: BasicType](s: var string, vs: array[I, T])
+proc toB64s[I; T: not BasicType](s: var string, vs: array[I, T])
 proc fromB64s[T: array](s: string, i: var int, vs: var T)
-proc toB64s[T: seq](s: var string, vs: T)
+proc toB64s[T: BasicType](s: var string, vs: seq[T])
+proc toB64s[T: not BasicType](s: var string, vs: seq[T])
 proc fromB64s[T: seq](s: string, i: var int, vs: var T)
 proc toB64s[T: tuple](s: var string, vs: T)
 proc fromB64s[T: tuple](s: string, i: var int, vs: var T)
@@ -52,11 +59,14 @@ macro buildNumB64: untyped =
       let T = ident(baseT & $size)
       result.add: quote do:
 
-        proc toB64s(s: var string, v: `T`) =
-          let base = len(s)
-          s.setLen base + neededSpace(`T`)
+        proc toB64s(s: var string, v: `T`, i = -1) =
+          let size = neededSpace(`T`)
+          var base = i
+          if i < 0:
+            base = len(s)
+            s.setLen base + size
           var v = v
-          for i in countdown(high(s), base):
+          for i in countdown(base+size-1, base):
             s[i] = base64table[v and 63]
             v = v shr 6
 
@@ -70,8 +80,8 @@ macro buildNumB64: untyped =
       let intT = ident("int" & $size)
       result.add: quote do:
 
-        proc toB64s(s: var string, v: `T`) =
-          toB64s(s, cast[`intT`](v))
+        proc toB64s(s: var string, v: `T`, i = -1) =
+          toB64s(s, cast[`intT`](v), i)
 
         proc fromB64s(s: string, i: var int, v: var `T`) =
           var vi: `intT`
@@ -80,9 +90,9 @@ macro buildNumB64: untyped =
 
 buildNumB64()
 
-proc toB64s(s: var string, v: int) =
-  when sizeof(int) == 4: toB64s(s, v.int32)
-  elif sizeof(int) == 8: toB64s(s, v.int64)
+proc toB64s(s: var string, v: int, i = -1) =
+  when sizeof(int) == 4: toB64s(s, v.int32, i)
+  elif sizeof(int) == 8: toB64s(s, v.int64, i)
 
 proc fromB64s(s: string, i: var int, v: var int) =
   when sizeof(int) == 4:
@@ -95,8 +105,8 @@ proc fromB64s(s: string, i: var int, v: var int) =
 
 # ---- char ----
 
-proc toB64s(s: var string, v: char) =
-  toB64s(s, v.int8)
+proc toB64s(s: var string, v: char, i = -1) =
+  toB64s(s, v.int8, i)
 
 proc fromB64s(s: string, i: var int, v: var char) =
   var vi: int8
@@ -106,8 +116,9 @@ proc fromB64s(s: string, i: var int, v: var char) =
 
 # ---- bool ----
 
-proc toB64s(s: var string, v: bool) =
-  s &= base64table[v.int]
+proc toB64s(s: var string, v: bool, i = -1) =
+  if i < 0: s   &= base64table[v.int]
+  else:     s[i] = base64table[v.int]
 
 proc fromB64s(s: string, i: var int, v: var bool) =
   v = base64tableInv[s[i]] != 0
@@ -124,7 +135,15 @@ proc fromB64s(s: string, i: var int, v: var bool) =
 
 # ---- array ----
 
-proc toB64s[T: array](s: var string, vs: T) =
+proc toB64s[I; T: BasicType](s: var string, vs: array[I, T]) =
+  var base = len(s)
+  let size = neededSpace(T)
+  s.setLen base + size*len(vs)
+  for v in vs:
+    toB64s(s, v, base)
+    base += size
+
+proc toB64s[I; T: not BasicType](s: var string, vs: array[I, T]) =
   for v in vs: toB64s(s, v)
 
 proc fromB64s[T: array](s: string, i: var int, vs: var T) =
@@ -133,7 +152,18 @@ proc fromB64s[T: array](s: string, i: var int, vs: var T) =
 
 # ---- seq ----
 
-proc toB64s[T: seq](s: var string, vs: T) =
+proc toB64s[T: BasicType](s: var string, vs: seq[T]) =
+  var base = len(s)
+  let size = neededSpace(T)
+  let l = len(vs)
+  s.setLen base + size*l + neededSpace(l)
+  toB64s(s, l, base)
+  base += neededSpace(l)
+  for v in vs:
+    toB64s(s, v, base)
+    base += size
+
+proc toB64s[T: not BasicType](s: var string, vs: seq[T]) =
   toB64s(s, len(vs))
   for v in vs: toB64s(s, v)
 
