@@ -14,22 +14,31 @@ const
     res
 
   base64tableInv = block:
-    var res: array[char, int8]
+    var res: array[char, int]
     for i, c in base64table:
       res[c] = i
     res
 
-template neededSpace(T: typedesc): int =
+
+func neededSpace[T: bool](td: typedesc[T]): int {.inline.} = 1
+
+func neededSpace[T; S: set[T]](td: typedesc[S]): int {.inline.} =
+  (int(high(T)) - int(low(T)) + 6) div 6
+
+func neededSpace[T: not (bool|set)](td: typedesc[T]): int {.inline.} =
   (sizeof(T)*8 + 5) div 6
 
-template neededSpace[T](x: T): int =
+func neededSpace[T](x: T): int {.inline.} =
   neededSpace(typeof(x))
+
 
 type BasicType = bool | char | SomeInteger | SomeFloat
 
 
 # ---- forward decl ----
 
+proc toB64s(s: var string, v: string)
+proc fromB64s(s: string, i: var int, v: var string)
 proc toB64s[I; T: BasicType](s: var string, vs: array[I, T])
 proc toB64s[I; T: not BasicType](s: var string, vs: array[I, T])
 proc fromB64s[T: array](s: string, i: var int, vs: var T)
@@ -127,10 +136,61 @@ proc fromB64s(s: string, i: var int, v: var bool) =
 
 # ---- string ----
 
-#[proc toB64s(s: var string, v: string) =
-  toB64s(s, len(v))
-  let base = len(s)
-  s.setLen base + len(v)]#
+proc toB64s(s: var string, v: string) =
+  var base = len(s)
+  let l = len(v)
+  s.setLen base + (l*8 + 5) div 6 + neededSpace(l)
+  toB64s(s, l, base)
+  base += neededSpace(l)
+  var vpos = 0
+
+  template encode(lv: int) =
+    let ls = lv + 1
+    var buffer = 0
+    var shift = 8*(lv-1)
+    for i in 0 ..< lv:
+      buffer = buffer or (v[vpos+i].int shl shift)
+      shift -= 8
+    shift = 6*(ls-1)
+    for i in 0 ..< ls:
+      s[base+i] = base64table[(buffer shr shift) and 63]
+      shift -= 6
+
+  for _ in 0 ..< l div 3:
+    encode 3
+    vpos += 3
+    base += 4
+
+  let rest = l mod 3
+  if rest > 0: encode rest
+
+proc fromB64s(s: string, i: var int, v: var string) =
+  var l: int
+  fromB64s(s, i, l)
+  v.setLen l
+
+  var vpos = 0
+
+  template decode(ls: int) =
+    let lv = ls - 1 
+    var buffer = 0
+    var shift = 6*(ls-1)
+    for _ in 0 ..< ls:
+      buffer = buffer or (base64tableInv[s[i]] shl shift)
+      shift -= 6
+      inc i
+    shift = 8*(lv-1)
+    for i in 0 ..< lv:
+      v[vpos+i] = char((buffer shr shift) and 255)
+      shift -= 8
+
+  var j = 0
+  for _ in 0 ..< l div 3:
+    decode 4
+    vpos += 3
+
+  let rest = l mod 3
+  if rest > 0: decode rest+1
 
 
 # ---- array ----
