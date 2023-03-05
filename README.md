@@ -1,6 +1,6 @@
 ## Unibs
 
-Serialize and deserialize any any type to/from binary form.<br>
+Serialize and deserialize any type to/from binary form.<br>
 Works in `c`, `js` backend, and in compiletime.<br>
 
 ### serialize
@@ -10,5 +10,5 @@ let serial = serialize([("foo", 4), ("ba", 2)])
 
 ### deserialize
 ```nim
-let data = deserialize(x, array[2, (string, int)])
+let data = deserialize(serial, array[2, (string, int)])
 ```
