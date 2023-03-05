@@ -1,5 +1,5 @@
-import std/[unittest, sequtils]
-
+import std/sequtils
+import ./testutils
 import unibs
 
 
@@ -48,11 +48,11 @@ type Direction = enum north, east, south, west
 
 test "enum":
   checkEq east
-
+  
 
 type Degrees = distinct int
-proc `==` * (x, y: Degrees): bool {.borrow.}
-func `$` * (x: Degrees): string {.borrow.}
+proc `==`*(x, y: Degrees): bool {.borrow.}
+func `$`*(x: Degrees): string {.borrow.}
 
 test "distinct":
   checkEq 300.Degrees

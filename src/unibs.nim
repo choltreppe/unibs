@@ -117,7 +117,6 @@ when defined(js):
     for offset in [0, 4]:
       var vi: uint32
       deserialize(s, i, vi)
-      debugEcho vi
       view.setUint32(offset, vi)
     v = view.getFloat64(0)
 
@@ -335,7 +334,6 @@ macro serializeImpl(s: var string, x: object) =
         objectRecCaseImpl(node): gen(nextNode, s,x)
 
       else:
-        if node.kind != nnkIdentDefs: debugEcho "here"
         let field = node[0]
         result.add: quote do:
           `s`.serialize(`x`.`field`)

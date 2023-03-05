@@ -20,5 +20,5 @@ task test, "run tests":
   echo "[ TEST js backend ]"
   exec "nim js -r tests/test.nim"
 
-  #echo "[ TEST vm ]"
-  #exec "nim e tests/test.nim"
+  echo "[ TEST compiletime ]"
+  exec "nim e tests/test.nim"
