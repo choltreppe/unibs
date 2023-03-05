@@ -1,10 +1,25 @@
-import std/sequtils
+import std/[sequtils, tables]
 import ./testutils
 import unibs
 
 
+let hexChars = block:
+  var res: array[16, char]
+  var i = 0
+  for cs in ['0'..'9', 'A'..'F']:
+    for c in cs:
+      res[i] = c
+      inc i
+  res
+
+proc hex(s: string): string =
+  for c in s:
+    result &= hexChars[(c.int shr 4) and 15] 
+    result &= hexChars[ c.int        and 15] 
+
 proc testEq[T](v: T): bool =
   let s = v.serialize
+  when T isnot set: echo s.hex
   s.deserialize(T) == v
 
 template checkEq(v: untyped) =
@@ -48,7 +63,7 @@ type Direction = enum north, east, south, west
 
 test "enum":
   checkEq east
-  
+
 
 type Degrees = distinct int
 proc `==`*(x, y: Degrees): bool {.borrow.}
@@ -79,7 +94,8 @@ test "array":
 
   checkEq [(3, 'x'), (7, 'd'), (0, '0')]
 
-  checkEq array[3..6, uint8]([2u8,1,5,6])
+  let arr: array[range[3..6], uint8] = [2u8,1,5,6]
+  checkEq arr
   checkEq [north: 0.Degrees, east: 90.Degrees, south: 180.Degrees, west: 270.Degrees]
 
 
@@ -88,6 +104,8 @@ test "seq":
   checkEq @[4, 2, 0]
   checkEq @['a', '0', '+', ' ']
 
+  debugEcho "\n - HERE - \n"
+  checkEq @["foo", "ba"]
   checkEq @[('a', 42, true), ('b', 1337, false)]
 
 
@@ -183,14 +201,17 @@ test "variant object with multiple discriminators":
   let cv1 = ComplexVariant(a: 4, kind: cvkA, b: 2, isSomething: true, f: 0)
   let cv1Test = cv1.serialize.deserialize(ComplexVariant)
 
-  doAssert cv1.a == cv1Test.a
-  doAssert cv1.b == cv1Test.b
-  doAssert cv1.f == cv1Test.f
+  check cv1.a == cv1Test.a
+  check cv1.b == cv1Test.b
+  check cv1.f == cv1Test.f
 
   let cv2 = ComplexVariant(a: 1, kind: cvkC, subKind: cvskB, d: 3, e: 3, isSomething: true, f: 7)
   let cv2Test = cv2.serialize.deserialize(ComplexVariant)
 
-  doAssert cv2.a == cv2Test.a
-  doAssert cv2.d == cv2Test.d
-  doAssert cv2.e == cv2Test.e
-  doAssert cv2.f == cv2Test.f
+  check cv2.a == cv2Test.a
+  check cv2.d == cv2Test.d
+  check cv2.e == cv2Test.e
+  check cv2.f == cv2Test.f
+
+
+printResult()

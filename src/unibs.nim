@@ -1,4 +1,4 @@
-import std/[macros, typetraits, bitops]
+import std/[macros, typetraits, bitops, tables]
 
 
 type BasicType = bool | char | SomeInteger | SomeFloat
@@ -8,11 +8,9 @@ type BasicType = bool | char | SomeInteger | SomeFloat
 
 proc serialize(s: var string, v: string)
 proc deserialize(s: string, i: var int, v: var string)
-proc serialize[I; T: BasicType](s: var string, vs: array[I, T])
-proc serialize[I; T: not BasicType](s: var string, vs: array[I, T])
+proc serialize[I, T](s: var string, vs: array[I, T])
 proc deserialize[T: array](s: string, i: var int, vs: var T)
-proc serialize[T: BasicType](s: var string, vs: seq[T])
-proc serialize[T: not BasicType](s: var string, vs: seq[T])
+proc serialize[T](s: var string, vs: seq[T])
 proc deserialize[T: seq](s: string, i: var int, vs: var T)
 proc serialize[T: tuple](s: var string, vs: T)
 proc deserialize[T: tuple](s: string, i: var int, vs: var T)
@@ -171,16 +169,16 @@ proc deserialize(s: string, i: var int, v: var string) =
 
 # ---- array ----
 
-proc serialize[I; T: BasicType](s: var string, vs: array[I, T]) =
-  var base = len(s)
-  let size = sizeof(T)
-  s.setLen base + size*len(vs)
-  for v in vs:
-    serialize(s, v, base)
-    base += size
-
-proc serialize[I; T: not BasicType](s: var string, vs: array[I, T]) =
-  for v in vs: serialize(s, v)
+proc serialize[I, T](s: var string, vs: array[I, T]) =
+  when T is BasicType:
+    var base = len(s)
+    let size = sizeof(T)
+    s.setLen base + size*len(vs)
+    for v in vs:
+      serialize(s, v, base)
+      base += size
+  else:
+    for v in vs: serialize(s, v)
 
 proc deserialize[T: array](s: string, i: var int, vs: var T) =
   for v in vs.mitems: deserialize(s, i, v)
@@ -188,20 +186,20 @@ proc deserialize[T: array](s: string, i: var int, vs: var T) =
 
 # ---- seq ----
 
-proc serialize[T: BasicType](s: var string, vs: seq[T]) =
-  var base = len(s)
-  let size = sizeof(T)
-  let l = len(vs)
-  s.setLen base + size*l + sizeof(l)
-  serialize(s, l, base)
-  base += sizeof(l)
-  for v in vs:
-    serialize(s, v, base)
-    base += size
-
-proc serialize[T: not BasicType](s: var string, vs: seq[T]) =
-  serialize(s, len(vs))
-  for v in vs: serialize(s, v)
+proc serialize[T](s: var string, vs: seq[T]) =
+  when T is BasicType:
+    var base = len(s)
+    let size = sizeof(T)
+    let l = len(vs)
+    s.setLen base + size*l + sizeof(l)
+    serialize(s, l, base)
+    base += sizeof(l)
+    for v in vs:
+      serialize(s, v, base)
+      base += size
+  else:
+    serialize(s, len(vs))
+    for v in vs: serialize(s, v)
 
 proc deserialize[T: seq](s: string, i: var int, vs: var T) =
   var l: int
@@ -329,14 +327,14 @@ macro serializeImpl(s: var string, x: object) =
         let discriminatorField = node[0][0]
         let discriminator = quote do: `x`.`discriminatorField`
         result.add: quote do:
-          `s`.serialize(`discriminator`)
+          serialize(`s`, `discriminator`)
 
         objectRecCaseImpl(node): gen(nextNode, s,x)
 
       else:
         let field = node[0]
         result.add: quote do:
-          `s`.serialize(`x`.`field`)
+          serialize(`s`, `x`.`field`)
 
   gen(x.getTypeImpl[2], s,x)
 
@@ -358,7 +356,7 @@ macro deserializeImpl(s: string, i: var int, x: var object) =
         let discriminator = genSym(nskVar, "discriminator")
         result.add: quote do:
           var `discriminator`: `discriminatorType`
-          `s`.deserialize(`i`, `discriminator`)
+          deserialize(`s`, `i`, `discriminator`)
           `x`.`discriminatorField` = `discriminator`
 
         objectRecCaseImpl(node): gen(nextNode, s,i,x)
@@ -366,7 +364,7 @@ macro deserializeImpl(s: string, i: var int, x: var object) =
       else:
         let field = node[0]
         result.add: quote do:
-          `s`.deserialize(`i`, `x`.`field`)
+          deserialize(`s`, `i`, `x`.`field`)
 
   result = gen(x.getTypeImpl[2], s,i,x)
 
