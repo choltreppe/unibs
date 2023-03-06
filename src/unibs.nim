@@ -3,6 +3,15 @@ import std/[macros, typetraits, bitops, tables]
 
 type BasicType = bool | char | SomeInteger | SomeFloat
 
+func neededSpace(T: typedesc[not set]): int =
+  when defined(js) and T is int: 8
+  else: sizeof(T)
+
+func neededSpace[T](td: typedesc[set[T]]): int =
+  (high(T).int - low(T).int + 8) div 8
+
+func neededSpace[T](v: T): int = neededSpace(T)
+
 
 # ---- forward decl ----
 
@@ -28,7 +37,7 @@ proc deserialize(s: string, i: var int, x: var object)
 
 # ---- int/float ----
 
-macro buildNumB64: untyped =
+macro buildNumSerial: untyped =
   result = newStmtList()
   const sizes =
     when defined(js): [8, 16, 32]
@@ -39,7 +48,7 @@ macro buildNumB64: untyped =
       result.add: quote do:
 
         proc serialize(s: var string, v: `T`, i = -1) =
-          let size = sizeof(`T`)
+          let size = neededSpace(`T`)
           var base = i
           if i < 0:
             base = len(s)
@@ -50,7 +59,7 @@ macro buildNumB64: untyped =
             v = v shr 8
 
         proc deserialize(s: string, i: var int, v: var `T`) =
-          for _ in 0 ..< sizeof(`T`):
+          for _ in 0 ..< neededSpace(`T`):
             v = (v shl 8) or s[i].`T`
             inc i
 
@@ -68,7 +77,7 @@ macro buildNumB64: untyped =
             deserialize(s, i, vi)
             v = cast[`T`](vi)
 
-buildNumB64()
+buildNumSerial()
 
 when defined(js):
   import std/private/jsutils
@@ -118,17 +127,29 @@ when defined(js):
       view.setUint32(offset, vi)
     v = view.getFloat64(0)
 
-proc serialize(s: var string, v: int, i = -1) =
-  when sizeof(int) == 4: serialize(s, v.int32, i)
-  elif sizeof(int) == 8: serialize(s, v.int64, i)
+  proc serialize(s: var string, v: int, i = -1) =
+    if i < 0:
+      let base = len(s) + 4
+      s.setLen base + 4
+      serialize(s, v.int32, base)
+    else:
+      serialize(s, v.int32, i + 4)
 
-proc deserialize(s: string, i: var int, v: var int) =
-  when sizeof(int) == 4:
+  proc deserialize(s: string, i, v: var int) =
+    i += 4
     var vi: int32
-  elif sizeof(int) == 8:
+    deserialize(s, i, vi)
+    v = vi.int
+
+else:
+
+  proc serialize(s: var string, v: int, i = -1) =
+    serialize(s, v.int64, i)
+
+  proc deserialize(s: string, i, v: var int) =
     var vi: int64
-  deserialize(s, i, vi)
-  v = vi.int
+    deserialize(s, i, vi)
+    v = vi.int
 
 
 # ---- char ----
@@ -172,7 +193,7 @@ proc deserialize(s: string, i: var int, v: var string) =
 proc serialize[I, T](s: var string, vs: array[I, T]) =
   when T is BasicType:
     var base = len(s)
-    let size = sizeof(T)
+    let size = neededSpace(T)
     s.setLen base + size*len(vs)
     for v in vs:
       serialize(s, v, base)
@@ -189,11 +210,11 @@ proc deserialize[T: array](s: string, i: var int, vs: var T) =
 proc serialize[T](s: var string, vs: seq[T]) =
   when T is BasicType:
     var base = len(s)
-    let size = sizeof(T)
+    let size = neededSpace(T)
     let l = len(vs)
-    s.setLen base + size*l + sizeof(l)
+    s.setLen base + size*l + neededSpace(l)
     serialize(s, l, base)
-    base += sizeof(l)
+    base += neededSpace(l)
     for v in vs:
       serialize(s, v, base)
       base += size
@@ -219,12 +240,9 @@ proc deserialize[T: tuple](s: string, i: var int, vs: var T) =
 
 # ---- set ----
 
-proc setSize(T: typedesc): int =
-  high(T).int - low(T).int
-
 proc serialize[T](s: var string, vs: set[T]) =
   var base = len(s)
-  s.setLen base + setSize(T)
+  s.setLen base + neededSpace(vs)
   var i = 0
   var v: uint8
   for x in low(T)..high(T):
@@ -235,11 +253,12 @@ proc serialize[T](s: var string, vs: set[T]) =
       v = 0
       i = 0
       inc base
-  s[base] = v.char
+  if i > 0:
+    s[base] = v.char
 
 proc deserialize[T](s: string, i: var int, vs: var set[T]) =
   var v = low(T)
-  for c in s[(len(s) - setSize(T)) ..< len(s)]:
+  for c in s[(len(s) - neededSpace(vs)) ..< len(s)]:
     for i in 0 ..< 8:
       if v == high(T): return
       if c.int.testBit(i): vs.incl v
@@ -270,7 +289,7 @@ proc deserialize[T: distinct](s: string, i: var int, v: var T) =
 # ---- enum ----
 
 proc serialize[T: enum](s: var string, v: T) =
-  const size = sizeof(T)
+  const size = neededSpace(T)
   serialize(s):
     when size == 1: v.int8
     elif size <= 2: v.int16
@@ -278,7 +297,7 @@ proc serialize[T: enum](s: var string, v: T) =
     elif size <= 8: v.int64
 
 proc deserialize[T: enum](s: string, i: var int, v: var T) =
-  const size = sizeof(T)
+  const size = neededSpace(T)
   when size == 1:
     var vi: int8
   elif size <= 2:

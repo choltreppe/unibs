@@ -19,7 +19,8 @@ proc hex(s: string): string =
 
 proc testEq[T](v: T): bool =
   let s = v.serialize
-  when T isnot set: echo s.hex
+  when T isnot set:
+    echo s.hex
   s.deserialize(T) == v
 
 template checkEq(v: untyped) =
@@ -104,7 +105,6 @@ test "seq":
   checkEq @[4, 2, 0]
   checkEq @['a', '0', '+', ' ']
 
-  debugEcho "\n - HERE - \n"
   checkEq @["foo", "ba"]
   checkEq @[('a', 42, true), ('b', 1337, false)]
 
