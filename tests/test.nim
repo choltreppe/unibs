@@ -84,7 +84,7 @@ test "set":
   checkEq {0.uint16, 67, 16}
   checkEq {8, 45, 7}
 
-  checkEq {north, south}
+  checkEq {north, west}
 
 
 test "array":

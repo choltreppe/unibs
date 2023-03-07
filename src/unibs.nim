@@ -260,8 +260,8 @@ proc deserialize[T](s: string, i: var int, vs: var set[T]) =
   var v = low(T)
   for c in s[(len(s) - neededSpace(vs)) ..< len(s)]:
     for i in 0 ..< 8:
-      if v == high(T): return
       if c.int.testBit(i): vs.incl v
+      if v == high(T): return
       inc v
 
 
