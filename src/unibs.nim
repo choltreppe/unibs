@@ -268,11 +268,16 @@ proc deserialize[T](s: string, i: var int, vs: var set[T]) =
 # ---- ref ----
 
 proc serialize[T: ref](s: var string, v: T) =
-  serialize(s, v[])
+  if v == nil: s &= '0'
+  else:
+    s &= char(1)
+    serialize(s, v[])
 
 proc deserialize[T: ref](s: string, i: var int, v: var T) =
-  new v
-  deserialize(s, i, v[])
+  inc i
+  if s[i-1] != '0':
+    new v
+    deserialize(s, i, v[])
 
 
 # ---- distinct ----

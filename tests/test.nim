@@ -106,7 +106,10 @@ test "seq":
   checkEq @['a', '0', '+', ' ']
 
   checkEq @["foo", "ba"]
+
   checkEq @[('a', 42, true), ('b', 1337, false)]
+  checkEq @[@["bmo"], @["jake", "finn"]]
+  checkEq @[@[(2, "frfr")], @[(67, "bli"), (99, "bla")]]
 
 
 test "ref":
@@ -116,6 +119,9 @@ test "ref":
   v[] = 23
 
   check v.serialize.deserialize(ref int)[] == v[]
+
+  checkEq (ref int)(nil)
+  checkEq (ref char)(nil)
 
 
 test "object (basic)":

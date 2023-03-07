@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.1.2"
+version       = "0.1.3"
 author        = "Joel Lienhard"
 description   = "binary de-/serialization that works on js, c and comp-time"
 license       = "MIT"
@@ -9,7 +9,7 @@ srcDir        = "src"
 
 # Dependencies
 
-requires "nim >= 1.9.1"
+requires "nim >= 1.6.10"
 
 
 task test, "run tests":
