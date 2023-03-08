@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.1.3"
+version       = "0.1.4"
 author        = "Joel Lienhard"
 description   = "binary de-/serialization that works on js, c and comp-time"
 license       = "MIT"

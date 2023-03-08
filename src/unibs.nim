@@ -3,6 +3,8 @@ import std/[macros, typetraits, bitops, tables]
 
 type BasicType = bool | char | SomeInteger | SomeFloat
 
+type SomeTable[K, V] = Table[K, V] | OrderedTable[K, V]
+
 func neededSpace(T: typedesc[not set]): int =
   when defined(js) and T is int: 8
   else: sizeof(T)
@@ -17,22 +19,34 @@ func neededSpace[T](v: T): int = neededSpace(T)
 
 proc serialize(s: var string, v: string)
 proc deserialize(s: string, i: var int, v: var string)
+
 proc serialize[I, T](s: var string, vs: array[I, T])
 proc deserialize[T: array](s: string, i: var int, vs: var T)
+
 proc serialize[T](s: var string, vs: seq[T])
 proc deserialize[T: seq](s: string, i: var int, vs: var T)
+
 proc serialize[T: tuple](s: var string, vs: T)
 proc deserialize[T: tuple](s: string, i: var int, vs: var T)
+
 proc serialize[T](s: var string, vs: set[T])
 proc deserialize[T](s: string, i: var int, vs: var set[T])
+
 proc serialize[T: ref](s: var string, v: T)
 proc deserialize[T: ref](s: string, i: var int, v: var T)
+
 proc serialize[T: distinct](s: var string, v: T)
 proc deserialize[T: distinct](s: string, i: var int, v: var T)
+
 proc serialize[T: enum](s: var string, v: T)
 proc deserialize[T: enum](s: string, i: var int, v: var T)
+
 proc serialize(s: var string, x: object)
 proc deserialize(s: string, i: var int, x: var object)
+
+proc serialize(s: var string, t: SomeTable | CountTable)
+proc deserialize[K, V](s: string, i: var int, t: var SomeTable[K, V])
+proc deserialize[K](s: string, i: var int, t: var CountTable[K])
 
 
 # ---- int/float ----
@@ -393,6 +407,26 @@ macro deserializeImpl(s: string, i: var int, x: var object) =
   result = gen(x.getTypeImpl[2], s,i,x)
 
 proc deserialize(s: string, i: var int, x: var object) = deserializeImpl(s, i, x)
+
+
+# ---- tables ----
+
+proc serialize(s: var string, t: SomeTable | CountTable) =
+  serialize(s, len(t))
+  for kv in t.pairs:
+    serialize(s, kv)
+
+proc deserializeTable[T](s: string, i: var int, t: var T, K,V: typedesc) =
+  var kvs: seq[(K, V)]
+  deserialize(s, i, kvs)
+  for (k, v) in kvs:
+    t[k] = v
+
+proc deserialize[K, V](s: string, i: var int, t: var SomeTable[K, V]) =
+  deserializeTable(s, i, t, K, V)
+
+proc deserialize[K](s: string, i: var int, t: var CountTable[K]) =
+  deserializeTable(s, i, t, K, int)
 
 
 # ---- main ----

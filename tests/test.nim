@@ -220,4 +220,12 @@ test "variant object with multiple discriminators":
   check cv2.f == cv2Test.f
 
 
+test "tables":
+
+  checkEq {"dede": 2, "dfb89=": -467, "": 0}.toTable
+  checkEq {(3, '-'): true, (-45, '0'): false, (42, '#'): true}.toOrderedTable
+  checkEq {"foo": 4, "ba": 2}.toCountTable
+  checkEq {"bli": (123u8, true), "bla": (2u8, false)}.newTable
+
+
 printResult()
