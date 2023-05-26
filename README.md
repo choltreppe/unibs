@@ -1,3 +1,5 @@
+**important: this package is pretty much a worse version of flatty (some parts even copied from there) except the advantage that it works at comp-time**, so just cosider it when you need the comptime support.
+
 ## Unibs
 
 Serialize and deserialize any type to/from binary form.<br>

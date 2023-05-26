@@ -1,4 +1,5 @@
 import std/[macros, typetraits, bitops, tables]
+import ./private/objvar
 
 
 type BasicType = bool | char | SomeInteger | SomeFloat
@@ -331,82 +332,27 @@ proc deserialize[T: enum](s: string, i: var int, v: var T) =
 
 # ---- object ----
 
-template objectRecCaseImpl(node: NimNode, selfCall: untyped): untyped =
-  var caseStmt = nnkCaseStmt.newTree(discriminator)
-  for branch in node[1 .. ^1]:
-    caseStmt.add:
-      if branch.kind == nnkOfBranch:
-        if branch[1].kind == nnkRecList:
-          var nextNode {.inject.} = branch[1]
-          nnkOfBranch.newTree(branch[0], selfCall)
-        else:
-          let nextNode {.inject.} = branch[1 .. ^1]
-          nnkOfBranch.newTree(branch[0], selfCall)
-      else:
-        if branch[0].kind == nnkRecList:
-          let nextNode {.inject.} = branch[0]
-          nnkElse.newTree(selfCall)
-        else:
-          let nextNode {.inject.} = branch
-          nnkElse.newTree(selfCall)
-  result.add caseStmt
+proc serialize(s: var string, x: object) =
+  when x.isObjectVariant:
+    serialize(s, x.discriminatorField)
+    for k, e in x.fieldPairs:
+      when k != x.discriminatorFieldName:
+        serialize(s, e)
+  else:
+    for e in x.fields:
+      serialize(s, e)
 
-
-macro serializeImpl(s: var string, x: object) =
-
-  func gen(nodes: NimNode|seq[NimNode], s,x: NimNode): NimNode =
-    result = newStmtList()
-    for node in nodes:
-      case node.kind
-      of nnkRecList:
-        result.add gen(node, s,x)
-
-      of nnkRecCase:
-        let discriminatorField = node[0][0]
-        let discriminator = quote do: `x`.`discriminatorField`
-        result.add: quote do:
-          serialize(`s`, `discriminator`)
-
-        objectRecCaseImpl(node): gen(nextNode, s,x)
-
-      else:
-        let field = node[0]
-        result.add: quote do:
-          serialize(`s`, `x`.`field`)
-
-  gen(x.getTypeImpl[2], s,x)
-
-proc serialize(s: var string, x: object) = serializeImpl(s, x)
-
-
-macro deserializeImpl(s: string, i: var int, x: var object) =
-
-  func gen(nodes: NimNode|seq[NimNode], s,i,x: NimNode): NimNode =
-    result = newStmtList()
-    for node in nodes:
-      case node.kind
-      of nnkRecList:
-        result.add gen(node, s,i,x)
-
-      of nnkRecCase:
-        let discriminatorField = node[0][0]
-        let discriminatorType = node[0][1]
-        let discriminator = genSym(nskVar, "discriminator")
-        result.add: quote do:
-          var `discriminator`: `discriminatorType`
-          deserialize(`s`, `i`, `discriminator`)
-          `x`.`discriminatorField` = `discriminator`
-
-        objectRecCaseImpl(node): gen(nextNode, s,i,x)
-
-      else:
-        let field = node[0]
-        result.add: quote do:
-          deserialize(`s`, `i`, `x`.`field`)
-
-  result = gen(x.getTypeImpl[2], s,i,x)
-
-proc deserialize(s: string, i: var int, x: var object) = deserializeImpl(s, i, x)
+proc deserialize(s: string, i: var int, x: var object) =
+  when x.isObjectVariant:
+    var discriminator: type(x.discriminatorField)
+    deserialize(s, i, discriminator)
+    new(x, discriminator)
+    for k, e in x.fieldPairs:
+      when k != x.discriminatorFieldName:
+        deserialize(s, i, e)
+  else:
+    for e in x.fields:
+      deserialize(s, i, e)
 
 
 # ---- tables ----

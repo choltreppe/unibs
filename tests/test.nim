@@ -186,40 +186,6 @@ test "recursive object":
   check t2.rhs.lhs.rhs.val == t2Test.rhs.lhs.rhs.val
 
 
-test "variant object with multiple discriminators":
-
-  type
-    ComplexVariantKind = enum cvkA, cvkB, cvkC
-    ComplexVariantSubKind = enum cvskA, cvskB
-    ComplexVariant = object
-      a: int
-      case kind: ComplexVariantKind
-      of cvkA: b: int
-      else:
-        case subKind: ComplexVariantSubKind
-        of cvskA: c: int
-        of cvskB:
-          d,e: int
-      case isSomething: bool
-      of true: f: int
-      else: discard
-
-  let cv1 = ComplexVariant(a: 4, kind: cvkA, b: 2, isSomething: true, f: 0)
-  let cv1Test = cv1.serialize.deserialize(ComplexVariant)
-
-  check cv1.a == cv1Test.a
-  check cv1.b == cv1Test.b
-  check cv1.f == cv1Test.f
-
-  let cv2 = ComplexVariant(a: 1, kind: cvkC, subKind: cvskB, d: 3, e: 3, isSomething: true, f: 7)
-  let cv2Test = cv2.serialize.deserialize(ComplexVariant)
-
-  check cv2.a == cv2Test.a
-  check cv2.d == cv2Test.d
-  check cv2.e == cv2Test.e
-  check cv2.f == cv2Test.f
-
-
 test "tables":
 
   checkEq {"dede": 2, "dfb89=": -467, "": 0}.toTable
